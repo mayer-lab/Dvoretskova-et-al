@@ -1,0 +1,135 @@
+---
+title: "Modules"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(tibble)
+library(stringr)
+```
+
+### Perturbation effect on module scores
+
+Outputs **Fig.6i**
+
+```{r}
+P7GE_neurons <- readRDS(file = '/data/mayerlab/Github/Dvoretskova_et_al_2023-DATASETS/P7GE_neurons.rds')
+```
+
+
+```{r}
+# initialize dataframe
+query.list <- colnames(P7GE_neurons@meta.data)[27:34]
+# explanatory_vars <- c("geno", "dataset", "nFeature_RNA")  
+explanatory_vars <- c("gRNA", "dataset", "nFeature_RNA")  
+
+total_effect <- data.frame(matrix(ncol = 8, nrow = 3)) # total effect dataframe
+colnames(total_effect) <- query.list
+rownames(total_effect) <- c("gMeis2", "gTcf4", "gLhx6")
+# rownames(total_effect) <- "X4cKO"
+
+p_value <- data.frame(matrix(ncol = 8, nrow = 3)) # p-value dataframe 
+colnames(p_value) <- query.list
+rownames(p_value) <- c("gMeis2", "gTcf4", "gLhx6")
+# rownames(p_value) <- "X4cKO"
+
+
+# populate data frame with effect size values
+for (i in seq_along(query.list)) {
+  outcome_name <- query.list[i]
+  formula_str <- paste(outcome_name, "~", paste(explanatory_vars, collapse = " + "))
+  gene_model <- lm(formula_str, data = P7GE_neurons@meta.data)
+  summary <- summary(gene_model)
+  summary <- as.data.frame(summary$coefficients)
+  estimate<- summary$Estimate[2:4]
+  total_effect[[outcome_name]] <- estimate
+  p_value[outcome_name] <- summary$`Pr(>|t|)`[2:4]
+}
+
+view(total_effect)
+view(p_value)
+```
+
+```{r}
+total_effect <- rownames_to_column(total_effect, var = "Perturbations") # reshpae data
+total_effect <- reshape2::melt(total_effect)
+p_value <- rownames_to_column(p_value, var = "Perturbations")
+p_value <- reshape2::melt(p_value)
+```
+
+```{r}
+p_adj <- p_value %>% mutate(p_adj = p.adjust(value, method = "bonferroni", n = length(value))) %>% mutate( p_adj = if_else(-log(p_adj) >= 4,4,-log(p_adj)))
+```
+
+```{r}
+# add the adjust p-value to effect size data frame
+total_effect$p_adj <- p_adj$p_adj
+total_effect <- total_effect[total_effect$variable %in% c("mod4", "mod5", "mod6", "mod8"),]
+```
+
+```{r}
+mod_plot <- ggplot(total_effect) +
+  geom_point(mapping = aes(x = Perturbations, y = variable, colour = value, size = p_adj)) +
+  scale_colour_viridis_b() + 
+  geom_point(mapping = aes(x = Perturbations, y = variable, size = p_adj), shape = 21, colour = "black", stroke =  2, data = total_effect[which(total_effect$p_adj > 3),]) +
+  scale_size_continuous("-log(Pvalue)", range = c(2,7), breaks = c(1,2,3,4), labels = c("1", "2", "3", ">4")) +
+  labs(y = "Modules", colour = "Effect size") +
+  theme_bw() +
+  theme(panel.grid.major = element_blank()) +
+  ggtitle("Perturbation effect compared to lacZ control") 
+mod_plot
+ggsave(filename = "/data/mayerlab/Github/Dvoretskova_et_al_2023-DATASETS/results/hotspot/P7perturb_mod_change_subset.pdf",
+       height = 5.03, width = 4.27, units = "in")
+ #  guides(size = FALSE)
+```
+### Visualizing module genes
+
+```{r}
+module_genes <- read_csv("/data/mayerlab/Github/Dvoretskova_et_al_2023-DATASETS/neuron_GE_module_141021.csv")
+```
+
+```{r}
+interest_genes <- c(module_genes$`0`[151:155], module_genes$`0`[201:205], module_genes$`0`[251:255],module_genes$`0`[351:355])
+```
+
+```{r}
+# Calculate average expression of top 10 genes of x module
+Idents(P7GE_neurons) <- "gRNA"
+mod_expression <- as.data.frame(AverageExpression(P7GE_neurons, features = interest_genes, return.seurat = F, assays = "SCT"))
+mod_expression <- t(scale(t(mod_expression))) # scale data by row to standardize 
+mod_expression <- as.data.frame(scales::rescale(mod_expression, to=c(-4,4)))
+```
+
+```{r}
+mod_expression$SCT.gMeis2 <- mod_expression$SCT.gMeis2 - mod_expression$SCT.glacZ
+mod_expression$SCT.gTcf4 <- mod_expression$SCT.gTcf4 - mod_expression$SCT.glacZ
+mod_expression$SCT.gLhx6 <- mod_expression$SCT.gLhx6 - mod_expression$SCT.glacZ
+mod_expression$SCT.glacZ <- NULL
+mod_expression <- t(scale(t(mod_expression))) # scale data by row to standardize
+```
+
+```{r}
+mod <- reshape2::melt(as.matrix(mod_expression)) # reshape into dataframe
+names(mod)[c(1:3)] <- c("gene", "gRNA", "value")
+mod$gRNA <- str_remove(mod$gRNA, "RNA.")
+head(mod)
+```
+
+```{r}
+heatmap_mod <- ggplot(data = mod, mapping = aes(x = gRNA, y = gene,fill = value)) +
+  geom_raster() +
+  xlab(label = "gRNA") +
+  ylab(label = "genes") +
+  scale_fill_distiller(palette = "RdBu", direction = -1) + 
+ # scale_fill_gradientn(colours=c("red","blue")) +
+  ggtitle("Avgerage expression of module genes") +
+  labs(fill = "Expression") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+
+heatmap_mod
+```
+
+
+

@@ -1,0 +1,10 @@
+### motif spacing analysis performed using the SpaMo 
+
+#peak sequences of MEIS1/2-DLX5 overlapping peaks extracted in R (seq_meis2_dlx5_overlap_500bp_summit_seqs.fa)
+SpaMo webtool https: https://meme-suite.org/meme/tools/spamo
+SpaMo version 5.4.1
+
+command line:
+spamo -verbosity 1 -oc . -numgen 1 seq_meis2_dlx5_overlap_500bp_summit_seqs.fa TGACAG_HOMER-MEIS2-peaks_de-novo.meme TAATTA_HOMER-MEIS2_peaks_de-novo.meme
+
+

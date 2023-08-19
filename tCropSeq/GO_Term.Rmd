@@ -1,0 +1,29 @@
+---
+title: "GO_Term"
+output: html_notebook
+---
+
+```{r}
+library(enrichR)
+```
+
+
+```{r}
+dbs <- listEnrichrDbs()
+dbs <- c("GO_Molecular_Function_2018", "GO_Cellular_Component_2018", "GO_Biological_Process_2018")
+# enriched <- enrichr(module_genes$'0'[1:50], dbs) #input module genes
+```
+
+```{r}
+E16_proj_DE <- read_csv("/data/mayerlab/Github/Dvoretskova_et_al_2023-DATASETS/E16_proj_DE.csv")
+E16_proj_DE_up <- E16_proj_DE %>% filter(avg_logFC > 0) %>% filter(p_val_adj < 0.05)
+E16_proj_DE_down <- E16_proj_DE %>% filter(avg_logFC < 0) %>% filter(p_val_adj < 0.05)
+
+enriched <- enrichr(E16_proj_DE_up$gene,dbs)
+```
+
+```{r}
+bp <- enriched[["GO_Biological_Process_2018"]]
+sig_bp <- bp %>% filter(Adjusted.P.value < 0.05)
+```
+
